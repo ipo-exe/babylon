@@ -2,6 +2,117 @@ from root import *
 import pandas as pd
 import xml.etree.ElementTree as ET
 import os
+import matplotlib.pyplot as plt
+import numpy as np
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib.gridspec import GridSpec
+
+def plot_cashflow(df, folder, filename, dt_field="Date", val_field="Saldo", rev_field="Receitas", exp_field="Despesas", valac_field="Saldo Acumulado", ):
+    plt.style.use("seaborn-v0_8")
+
+    # Prepare data
+    df = df[[dt_field, rev_field, exp_field, val_field]].copy()
+    df[dt_field] = pd.to_datetime(df[dt_field])
+    df[valac_field] = df[val_field].cumsum()
+    df[rev_field + "_ac"] = df[rev_field].cumsum()
+    df[exp_field + "_ac"] = df[exp_field].cumsum()
+
+    # Set limits for plots based on value ranges
+    vmaxx = max(abs(df[val_field].min()), df[val_field].max())
+    vmaxx_ac = max(abs(df[exp_field + "_ac"].min()), df[rev_field + "_ac"].max())
+    vmaxx_re = max(abs(df[exp_field].min()), df[rev_field].max())
+    bar_width = pd.Timedelta(days=15)
+
+    # Set up GridSpec
+    fig = plt.figure(figsize=(9, 8))
+    gs = GridSpec(3, 1, height_ratios=[1, 1, 1], figure=fig,
+                  wspace=0.4,
+                  hspace=0.3,
+                  left=0.15,
+                  bottom=0.08,
+                  top=0.95,
+                  right=0.95
+                  )
+
+    # Subplot 1: Cumulative Balance Line
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.plot(df[dt_field], df[valac_field], marker='o', color='blue', linestyle='-', label='Saldo Acumulado')
+    ax1.plot(df[dt_field], df[rev_field + "_ac"], marker='o', color='darkgreen', linestyle='-',
+             label='Receitas Acumuladas')
+    ax1.plot(df[dt_field], df[exp_field + "_ac"], marker='o', color='tab:red', linestyle='-',
+             label='Despesas Acumuladas')
+    ax1.set_ylabel('R$')
+    ax1.set_title('Saldo Acumulado')
+    ax1.axhline(0, color='black', linewidth=1)
+    ax1.set_ylim(-1.3 * vmaxx_ac, 1.3 * vmaxx_ac)
+    ax1.set_xlim(df[dt_field].values[0] - (2*bar_width), df[dt_field].values[-1] + bar_width)
+    ax1.legend()
+
+    # Annotate only the last point for each line
+    last_date = df[dt_field].iloc[-1]
+    ax1.text(
+        last_date, df[valac_field].iloc[-1] - (vmaxx_ac / 10),
+        f"{round(df[valac_field].iloc[-1], 2)}", ha='center', va='top', fontsize=9, color='navy'
+    )
+    ax1.text(
+        last_date, df[rev_field + "_ac"].iloc[-1] + (vmaxx_ac / 10),
+        f"{round(df[rev_field + '_ac'].iloc[-1], 2)}", ha='center', va='bottom', fontsize=9, color='darkgreen'
+    )
+    ax1.text(
+        last_date, df[exp_field + "_ac"].iloc[-1] - (vmaxx_ac / 10),
+        f"{round(df[exp_field + '_ac'].iloc[-1], 2)}", ha='center', va='top', fontsize=9, color='tab:red'
+    )
+
+    # Subplot 2: Monthly Cash Flow Bars
+    ax2 = fig.add_subplot(gs[1, 0])
+    bars = ax2.bar(
+        df[dt_field] - bar_width / 2,
+        df[val_field],
+        width=bar_width,
+        color=df[val_field].apply(lambda x: 'darkgreen' if x >= 0 else 'tab:red')
+    )
+    ax2.set_ylabel('R$')
+    ax2.set_title('Saldo Mensal')
+    ax2.axhline(0, color='black', linewidth=1)
+    ax2.set_ylim(-1.3 * vmaxx_re, 1.3 * vmaxx_re)
+    ax2.set_xlim(df[dt_field].values[0] - (2*bar_width), df[dt_field].values[-1] + bar_width)
+    for bar, cash_flow in zip(bars, df[val_field]):
+        ax2.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + (vmaxx_re / 20) if cash_flow >= 0 else bar.get_height() - (vmaxx_re / 20),
+            f"{'+ ' if cash_flow >= 0 else '- '}{round(abs(cash_flow), 2)}",
+            ha='center',
+            va='bottom' if cash_flow >= 0 else 'top',
+            color='darkgreen' if cash_flow >= 0 else 'darkred',
+            fontsize=9
+    )
+
+    # Subplot 3: Monthly Revenue and Expenses Bars
+    ax3 = fig.add_subplot(gs[2, 0])
+    ax3.bar(df[dt_field] - bar_width / 2, df[rev_field], width=bar_width, color='tab:green',)
+    ax3.bar(df[dt_field] - bar_width / 2, df[exp_field], width=bar_width, color='tab:red',)
+    ax3.axhline(0, color='black', linewidth=1)
+    ax3.set_ylabel('R$')
+    ax3.set_title('Receitas e Despesas Mensais')
+    ax3.set_ylim(-1.3 * vmaxx_re, 1.3 * vmaxx_re)
+    ax3.set_xlim(df[dt_field].values[0] - (2*bar_width), df[dt_field].values[-1] + bar_width)
+    for x, rev, exp in zip(df[dt_field], df[rev_field], df[exp_field]):
+        ax3.text(x - bar_width / 2, rev + (vmaxx_re/20),
+                 f"{'+ ' if rev >= 0 else '- '}{round(abs(rev), 2)}",
+                 ha='center', va='bottom', fontsize=9, color='darkgreen')
+        ax3.text(x - bar_width / 2, exp - (vmaxx_re/20),
+                 f"{'+ ' if exp >= 0 else '- '}{round(abs(exp), 2)}",
+                 ha='center', va='top', fontsize=9, color='darkred')
+
+    # Shared X-axis formatting and layout adjustment
+    #plt.xlabel('Mês')
+    #plt.xticks(rotation=45)
+    #plt.tight_layout()
+    #plt.show()
+    plt.savefig(f"{folder}/{filename}.jpg", dpi=400)
 
 class Budget(RecordTable):
 
@@ -192,7 +303,6 @@ class Budget(RecordTable):
 
         return annual_budget
 
-
 class NFe(DataSet):
     """
     Child class for handling NFSe XML data.
@@ -208,6 +318,7 @@ class NFe(DataSet):
         self.emitter = None
         self.taker = None
         self.service_value = None
+        self.service_value_trib = None
         self.service_id = None
         self.project_alias = None
 
@@ -224,16 +335,17 @@ class NFe(DataSet):
             f"Local de Emissão: {self.data.get('local_emissao', 'N/A')}\n"
             f"Local de Prestação: {self.data.get('local_prestacao', 'N/A')}\n"
             f"Número da NFSe: {self.data.get('numero_nfse', 'N/A')}\n"
-            f"Código de Incidência: {self.data.get('codigo_local_incidencia', 'N/A')}\n"
+            f"Código de Local de Incidência: {self.data.get('codigo_local_incidencia', 'N/A')}\n"
             f"Descrição do Serviço: {self.data.get('descricao_servico', 'N/A')}\n"
             f"Valor Líquido: {self.data.get('valor_liquido', 'N/A')}\n"
             f"Data do Processo: {self.data.get('data_processo', 'N/A')}\n"
+            f"Data Competência: {self.date}\n"
         )
 
         # Format the emitente (issuer) information
         emitente = self.data.get(self.emitter_field, {})
         emitente_info = (
-            f"Emitente:\n"
+            f"Prestador:\n"
             f"  CNPJ: {emitente.get('cnpj', 'N/A')}\n"
             f"  Nome: {emitente.get('nome', 'N/A')}\n"
             f"  Endereço:\n"
@@ -283,9 +395,10 @@ class NFe(DataSet):
         super()._set_fields()
         # Attribute fields
         self.date_field = "Date"
-        self.emitter_field = "Emitente"
+        self.emitter_field = "Prestador"
         self.taker_field = "Tomador"
         self.service_value_field = "ValorServico"
+        self.service_value_trib_field = "PTributoSN"
         self.service_id_field = "ServicoID"
         self.project_alias_field = "Projeto"
 
@@ -312,6 +425,7 @@ class NFe(DataSet):
             self.emitter_field: self.emitter,
             self.taker_field: self.taker,
             self.service_value_field: self.service_value,
+            self.service_value_trib_field: self.service_value_trib,
             self.service_id_field: self.service_id,
             self.project_alias_field: self.project_alias,
         }
@@ -321,13 +435,12 @@ class NFe(DataSet):
         return dict_meta
 
     def load_data(self, file_data):
-        """
-                Load and parse XML data from the provided file.
+        """Load and parse XML data from the provided file.
 
-                :param file_data: file path to the NFSe XML data.
-                :type file_data: str
-                :return: None
-                """
+        :param file_data: file path to the NFSe XML data.
+        :type file_data: str
+        :return: None
+        """
         # Ensure the file path is absolute
         file_data = os.path.abspath(file_data)
         tree = ET.parse(file_data)
@@ -393,6 +506,14 @@ class NFe(DataSet):
         }
         valor_servico_element = root.find('.//default:valores/default:vServPrest/default:vServ', ns)
         nfse_data[self.service_value_field] = float(valor_servico_element.text)
+        nfse_data['servico']["valor_servico"] = nfse_data[self.service_value_field]
+        tribut_element = root.find('.//default:valores/default:trib/default:totTrib/default:pTotTribSN', ns)
+        if tribut_element is None:
+            # Handle
+            v_tb = 6.0
+        else:
+            v_tb = float(str(tribut_element.text))
+        nfse_data['servico']["p_tributo_SN"] = v_tb
 
         # Set parsed data to the class attribute
         self.data = nfse_data
@@ -401,6 +522,7 @@ class NFe(DataSet):
         self.emitter = self.data[self.emitter_field]["cnpj"] + " -- " + self.data[self.emitter_field]["nome"]
         self.taker = self.data[self.taker_field]["cnpj"] + " -- " + self.data[self.taker_field]["nome"]
         self.service_value = self.data[self.service_value_field]
+        self.service_value_trib = nfse_data['servico']["p_tributo_SN"]
         self.service_id = self.data["servico"]["codigo_servico"]
 
 
@@ -439,52 +561,44 @@ class NFeColl(Collection):
         self._set_fields()
         # ... continues in downstream objects ... #
 
+    def load_folder(self, folder):
+        """Load NFe files from a folder
+
+        :param folder: path to folder
+        :type folder: str
+        :return: None
+        :rtype: None
+        """
+        from glob import glob
+        lst_files = glob("{}/*.xml".format(folder))
+        self.load_files(lst_files=lst_files)
+
+
+    def load_files(self, lst_files):
+        """Load NFe files from a list of files
+
+        :param lst_files: list of paths to files
+        :type lst_files: list
+        :return: None
+        :rtype: None
+        """
+        for f in lst_files:
+            nfe_id = 'NFe_' + os.path.basename(f).split(".")[0]
+            nfe = NFe(name=nfe_id, alias=nfe_id)
+            nfe.load_data(file_data=f)
+            self.append(new_object=nfe)
+
+
+
+
+
 
 if __name__ == "__main__":
-    import glob
-    nfe_col = NFeColl()
-    print(nfe_col.catalog)
-    lst_files = glob.glob("C:/Users/Ipo/My Drive/athens/babylon/mei/nfe/nfe_2023/*.xml")
-    for f in lst_files:
-        print(f)
-        nfse_file = f
-        nfe_id = os.path.basename(f).split(".")[0]
-        nfe = NFe(name=nfe_id, alias=nfe_id)
-        nfe.load_data(file_data=nfse_file)
+    f =r"C:\Users\Ipo\My Drive\athens\babylon\slu\series\caixa-mensal_cc-rf.csv"
+    df = pd.read_csv(f, sep=";", parse_dates=["Data"])
+    print(df.head())
 
-        nfe_col.append(new_object=nfe)
-
-    df_2024 = nfe_col.catalog.query("Date >= '2023-01-01'").copy()
-    print(nfe_col.catalog[["Name", "Date", "Emitente", "Tomador", "ValorServico"]].to_string())
-
-    df_2024[["Date", "Emitente", "Tomador", "ValorServico"]].to_csv("C:/data/nfe_2023.csv", index=False)
-
-    '''
-    
-    df_2023 = nfe_col.catalog.query("Date >= '2023-01-01' and Date < '2024-01-01'").copy()
-    df_2023 = df_2023[["Name", "Date", "ValorServico"]].copy()
-    print(df_2023.to_string())
-
-    df_2024 = nfe_col.catalog.query("Date >= '2024-01-01'").copy()
-    df_2024 = df_2024[["Name", "Date", "ValorServico"]].copy()
-    print(df_2024.to_string())
-
-    out_dir = "C:/Users/Ipo/My Drive/athens/babylon/mei/nfe/nfe_"
-    for i in range(len(nfe_col.catalog)):
-        nfe_id = nfe_col.catalog["Name"].values[i]
-        nfe_year = nfe_col.catalog["Date"].values[i][:4]
-        print(nfe_year)
-        shutil.copy(
-            src="C:/Users/Ipo/Desktop/nfe/{}.xml".format(nfe_id),
-            dst="{}{}/{}.xml".format(out_dir, nfe_year, nfe_id)
-        )
-        shutil.copy(
-            src="C:/Users/Ipo/Desktop/nfe/{}.pdf".format(nfe_id),
-            dst="{}{}/{}.pdf".format(out_dir, nfe_year, nfe_id)
-        )
-    '''
-
-
+    plot_cashflow(df=df, folder=r"C:\Users\Ipo\My Drive\athens\babylon\slu\series", filename="caixa-mensal_cc-rf", dt_field="Data")
 
 
 
