@@ -1,0 +1,12 @@
+numpy<2
+scipy
+matplotlib
+pandas
+statsmodels
+geopandas
+Fiona
+black
+shapely
+imageio
+Sphinx
+scikit-learn

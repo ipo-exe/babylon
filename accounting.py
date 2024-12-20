@@ -10,27 +10,176 @@ import numpy as np
 import pandas as pd
 from matplotlib.gridspec import GridSpec
 
-def plot_cashflow(df, folder, filename, dt_field="Date", val_field="Saldo", rev_field="Receitas", exp_field="Despesas", valac_field="Saldo Acumulado", ):
+def plot_yearly_cashflow(df, folder, filename):
     plt.style.use("seaborn-v0_8")
 
-    # Prepare data
-    df = df[[dt_field, rev_field, exp_field, val_field]].copy()
+    # Definição dos campos
+    fields = {
+        "val": "Saldo",
+        "valac": "Saldo Acum",
+        "rev": "Receitas",
+        "revac": "Receitas Acum",
+        "exp": "Despesas",
+        "expac": "Despesas Acum",
+        "dt": "Data"
+    }
+
+    # Prepara a coluna de datas
+    df[fields["dt"]] = pd.to_datetime(df[fields["dt"]])
+
+    # Definindo margens e limites para os gráficos
+    v_margin = 1.5
+    bar_width = pd.Timedelta(days=15)
+
+    # Calcula os valores máximos para os gráficos
+    vmaxx_ac = max(abs(df[fields["expac"]].min()), df[fields["revac"]].max())
+    vmaxx_re = max(abs(df[fields["exp"]].min()), df[fields["rev"]].max())
+
+    # Configuração do GridSpec para os subgráficos
+    fig = plt.figure(figsize=(9, 12))
+    gs = GridSpec(5, 1, height_ratios=[1, 1, 1, 1, 1], figure=fig,
+                  wspace=0.4, hspace=0.5, left=0.15, bottom=0.08, top=0.95, right=0.95)
+
+    # Função para adicionar rótulos aos gráficos
+    def add_xticks(ax, dates):
+        ax.set_xticks(dates)
+        ax.set_xticklabels(dates.dt.strftime('%b'))
+
+    # Função para adicionar uma linha de base no gráfico
+    def add_baseline(ax, y_limit):
+        ax.axhline(0, color='black', linewidth=1)
+        ax.set_ylim(-v_margin * y_limit, v_margin * y_limit)
+
+    # Função para anotar os pontos finais de cada linha
+    def annotate_last_point(ax, x, y, text, color):
+        ax.text(x, y, f"{text:.2f}", ha='center', va='bottom', fontsize=9, color=color)
+
+    # Subplot 1: Cumulative Balance Line
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.plot(df[fields["dt"]], df[fields["valac"]], marker='o', color='blue', label='Saldo')
+    ax1.plot(df[fields["dt"]], df[fields["revac"]], marker='o', color='darkgreen', label='Receitas')
+    ax1.plot(df[fields["dt"]], df[fields["expac"]], marker='o', color='tab:red', label='Despesas')
+    ax1.set_ylabel('R$')
+    ax1.set_title('Saldo Acumulado')
+    add_baseline(ax1, vmaxx_ac)
+    add_xticks(ax1, df[fields["dt"]])
+
+    # Anotar os pontos finais
+    last_date = df[fields["dt"]].iloc[-1]
+    annotate_last_point(ax1, last_date, df[fields["valac"]].iloc[-1] - (vmaxx_ac / 10), df[fields["valac"]].iloc[-1], 'navy')
+    annotate_last_point(ax1, last_date, df[fields["revac"]].iloc[-1] + (vmaxx_ac / 10), df[fields["revac"]].iloc[-1], 'darkgreen')
+    annotate_last_point(ax1, last_date, df[fields["expac"]].iloc[-1] - (vmaxx_ac / 10), df[fields["expac"]].iloc[-1], 'tab:red')
+
+    # Subplot 2: Monthly Cash Flow Bars
+    ax2 = fig.add_subplot(gs[1, 0])
+    bars = ax2.bar(df[fields["dt"]] - bar_width / 2, df[fields["val"]], width=bar_width,
+                   color=df[fields["val"]].apply(lambda x: 'darkgreen' if x >= 0 else 'tab:red'))
+    ax2.set_ylabel('R$')
+    ax2.set_title('Saldo')
+    add_baseline(ax2, vmaxx_re)
+    add_xticks(ax2, df[fields["dt"]])
+
+    # Anotar as barras
+    for bar, cash_flow in zip(bars, df[fields["val"]]):
+        ax2.text(bar.get_x() + bar.get_width() / 2,
+                 bar.get_height() + (vmaxx_re / 20) if cash_flow >= 0 else bar.get_height() - (vmaxx_re / 20),
+                 f"{'+ ' if cash_flow >= 0 else '- '}{abs(cash_flow):.2f}",
+                 ha='center', va='bottom' if cash_flow >= 0 else 'top',
+                 color='darkgreen' if cash_flow >= 0 else 'darkred', fontsize=9)
+
+    # Linha da média
+    v_mean = df[fields["val"]].mean()
+    mean_color = 'green' if v_mean >= 0 else 'red'
+    ax2.hlines(y=v_mean, xmin=df[fields["dt"]].values[0], xmax=df[fields["dt"]].values[-1], color=mean_color,
+               linestyles="--", label=f"Média: {v_mean:.2f}", zorder=0)
+    plt.legend()
+
+    # Subplot 3: Monthly Revenue and Expenses Bars
+    ax3 = fig.add_subplot(gs[2, 0])
+    ax3.bar(df[fields["dt"]] - bar_width / 2, df[fields["rev"]], width=bar_width, color='tab:green')
+    ax3.bar(df[fields["dt"]] - bar_width / 2, df[fields["exp"]], width=bar_width, color='tab:red')
+    ax3.set_ylabel('R$')
+    ax3.set_title('Receitas e Despesas')
+    add_baseline(ax3, vmaxx_re)
+    add_xticks(ax3, df[fields["dt"]])
+
+    # Anotar as barras de receitas e despesas
+    for x, rev, exp in zip(df[fields["dt"]], df[fields["rev"]], df[fields["exp"]]):
+        ax3.text(x - bar_width / 2, rev + (vmaxx_re / 20), f"{'+ ' if rev >= 0 else '- '}{abs(rev):.2f}",
+                 ha='center', va='bottom', fontsize=9, color='darkgreen')
+        ax3.text(x - bar_width / 2, exp - (vmaxx_re / 20), f"{'+ ' if exp >= 0 else '- '}{abs(exp):.2f}",
+                 ha='center', va='top', fontsize=9, color='darkred')
+    '''
+    # Linha da média para receitas
+    rev_mean = df[fields["rev"]].mean()
+    rev_mean_color = 'darkgreen' if rev_mean >= 0 else 'darkred'
+    ax3.hlines(y=rev_mean, xmin=df[fields["dt"]].values[0], xmax=df[fields["dt"]].values[-1], color=rev_mean_color,
+               linestyles="--", label=f"Média: {rev_mean:.2f}", zorder=0)
+
+    # Linha da média para despesas
+    exp_mean = df[fields["exp"]].mean()
+    exp_mean_color = 'darkgreen' if exp_mean >= 0 else 'darkred'
+    ax3.hlines(y=exp_mean, xmin=df[fields["dt"]].values[0], xmax=df[fields["dt"]].values[-1], color=exp_mean_color,
+               linestyles="--", label=f"Média: {exp_mean:.2f}", zorder=0)
+
+    plt.legend()
+    '''
+
+    # Subplot 4: Lucros
+    ax4 = fig.add_subplot(gs[3, 0])
+    ax4.bar(df[fields["dt"]] - bar_width / 2, df["Lucros"], width=bar_width, color='magenta')
+    ax4.set_ylabel('R$')
+    ax4.set_title('Lucros')
+    add_baseline(ax4, vmaxx_re)
+    add_xticks(ax4, df[fields["dt"]])
+
+    for x, rev in zip(df[fields["dt"]], df["Lucros"]):
+        ax4.text(x - bar_width / 2, rev - (vmaxx_re / 3), f"{'+ ' if rev >= 0 else '- '}{abs(rev):.2f}",
+                 ha='center', va='bottom', fontsize=9, color='purple')
+
+    # Subplot 5: Prolabore
+    ax5 = fig.add_subplot(gs[4, 0])
+    ax5.bar(df[fields["dt"]] - bar_width / 2, df["Prolabore"], width=bar_width, color='magenta')
+    ax5.set_ylabel('R$')
+    ax5.set_title('Prolabore')
+    add_baseline(ax5, vmaxx_re)
+    add_xticks(ax5, df[fields["dt"]])
+
+    for x, rev in zip(df[fields["dt"]], df["Prolabore"]):
+        ax5.text(x - bar_width / 2, rev - (vmaxx_re / 3), f"{'+ ' if rev >= 0 else '- '}{abs(rev):.2f}",
+                 ha='center', va='bottom', fontsize=9, color='purple')
+
+    # Salva o gráfico
+    plt.savefig(f"{folder}/{filename}.jpg", dpi=400)
+
+def _plot_yearly_cashflow(df, folder, filename):
+
+    plt.style.use("seaborn-v0_8")
+
+    val_field = "Saldo"
+    valac_field = "Saldo Acum"
+    rev_field = "Receitas"
+    revac_field = "Receitas Acum"
+    exp_field = "Despesas"
+    expac_field = "Despesas Acum"
+    dt_field = "Data"
+
+    v_margin = 1.5
+
     df[dt_field] = pd.to_datetime(df[dt_field])
-    df[valac_field] = df[val_field].cumsum()
-    df[rev_field + "_ac"] = df[rev_field].cumsum()
-    df[exp_field + "_ac"] = df[exp_field].cumsum()
+
 
     # Set limits for plots based on value ranges
     vmaxx = max(abs(df[val_field].min()), df[val_field].max())
-    vmaxx_ac = max(abs(df[exp_field + "_ac"].min()), df[rev_field + "_ac"].max())
+    vmaxx_ac = max(abs(df[expac_field].min()), df[revac_field].max())
     vmaxx_re = max(abs(df[exp_field].min()), df[rev_field].max())
     bar_width = pd.Timedelta(days=15)
 
     # Set up GridSpec
-    fig = plt.figure(figsize=(9, 8))
-    gs = GridSpec(3, 1, height_ratios=[1, 1, 1], figure=fig,
+    fig = plt.figure(figsize=(9, 12))
+    gs = GridSpec(5, 1, height_ratios=[1, 1, 1, 1, 1], figure=fig,
                   wspace=0.4,
-                  hspace=0.3,
+                  hspace=0.5,
                   left=0.15,
                   bottom=0.08,
                   top=0.95,
@@ -39,16 +188,18 @@ def plot_cashflow(df, folder, filename, dt_field="Date", val_field="Saldo", rev_
 
     # Subplot 1: Cumulative Balance Line
     ax1 = fig.add_subplot(gs[0, 0])
-    ax1.plot(df[dt_field], df[valac_field], marker='o', color='blue', linestyle='-', label='Saldo Acumulado')
-    ax1.plot(df[dt_field], df[rev_field + "_ac"], marker='o', color='darkgreen', linestyle='-',
-             label='Receitas Acumuladas')
-    ax1.plot(df[dt_field], df[exp_field + "_ac"], marker='o', color='tab:red', linestyle='-',
-             label='Despesas Acumuladas')
+    ax1.plot(df[dt_field], df[valac_field], marker='o', color='blue', linestyle='-', label='Saldo')
+    ax1.plot(df[dt_field], df[revac_field], marker='o', color='darkgreen', linestyle='-',
+             label='Receitas')
+    ax1.plot(df[dt_field], df[expac_field], marker='o', color='tab:red', linestyle='-',
+             label='Despesas')
     ax1.set_ylabel('R$')
     ax1.set_title('Saldo Acumulado')
     ax1.axhline(0, color='black', linewidth=1)
-    ax1.set_ylim(-1.3 * vmaxx_ac, 1.3 * vmaxx_ac)
+    ax1.set_ylim(-v_margin * vmaxx_ac, v_margin * vmaxx_ac)
     ax1.set_xlim(df[dt_field].values[0] - (2*bar_width), df[dt_field].values[-1] + bar_width)
+    # Substituindo os rótulos do eixo X com as siglas dos meses
+    plt.xticks(df[dt_field], df[dt_field].dt.strftime('%b'))
     ax1.legend()
 
     # Annotate only the last point for each line
@@ -58,12 +209,12 @@ def plot_cashflow(df, folder, filename, dt_field="Date", val_field="Saldo", rev_
         f"{round(df[valac_field].iloc[-1], 2)}", ha='center', va='top', fontsize=9, color='navy'
     )
     ax1.text(
-        last_date, df[rev_field + "_ac"].iloc[-1] + (vmaxx_ac / 10),
-        f"{round(df[rev_field + '_ac'].iloc[-1], 2)}", ha='center', va='bottom', fontsize=9, color='darkgreen'
+        last_date, df[revac_field].iloc[-1] + (vmaxx_ac / 10),
+        f"{round(df[revac_field].iloc[-1], 2)}", ha='center', va='bottom', fontsize=9, color='darkgreen'
     )
     ax1.text(
-        last_date, df[exp_field + "_ac"].iloc[-1] - (vmaxx_ac / 10),
-        f"{round(df[exp_field + '_ac'].iloc[-1], 2)}", ha='center', va='top', fontsize=9, color='tab:red'
+        last_date, df[expac_field].iloc[-1] - (vmaxx_ac / 10),
+        f"{round(df[revac_field].iloc[-1], 2)}", ha='center', va='top', fontsize=9, color='tab:red'
     )
 
     # Subplot 2: Monthly Cash Flow Bars
@@ -75,9 +226,9 @@ def plot_cashflow(df, folder, filename, dt_field="Date", val_field="Saldo", rev_
         color=df[val_field].apply(lambda x: 'darkgreen' if x >= 0 else 'tab:red')
     )
     ax2.set_ylabel('R$')
-    ax2.set_title('Saldo Mensal')
+    ax2.set_title('Saldo')
     ax2.axhline(0, color='black', linewidth=1)
-    ax2.set_ylim(-1.3 * vmaxx_re, 1.3 * vmaxx_re)
+    ax2.set_ylim(-v_margin * vmaxx_re, v_margin * vmaxx_re)
     ax2.set_xlim(df[dt_field].values[0] - (2*bar_width), df[dt_field].values[-1] + bar_width)
     for bar, cash_flow in zip(bars, df[val_field]):
         ax2.text(
@@ -89,6 +240,23 @@ def plot_cashflow(df, folder, filename, dt_field="Date", val_field="Saldo", rev_
             color='darkgreen' if cash_flow >= 0 else 'darkred',
             fontsize=9
     )
+    v_mean = df[val_field].mean()
+    if v_mean >=0:
+        c_mean = 'green'
+    else:
+        c_mean = 'red'
+    ax2.hlines(
+        y=v_mean,
+        xmin=df[dt_field].values[0],
+        xmax=df[dt_field].values[-1],
+        color=c_mean,
+        zorder=0,
+        linestyles="--",
+        label="Média: {}".format(round(v_mean, 2))
+    )
+    plt.legend()
+    # Substituindo os rótulos do eixo X com as siglas dos meses
+    plt.xticks(df[dt_field], df[dt_field].dt.strftime('%b'))
 
     # Subplot 3: Monthly Revenue and Expenses Bars
     ax3 = fig.add_subplot(gs[2, 0])
@@ -96,8 +264,8 @@ def plot_cashflow(df, folder, filename, dt_field="Date", val_field="Saldo", rev_
     ax3.bar(df[dt_field] - bar_width / 2, df[exp_field], width=bar_width, color='tab:red',)
     ax3.axhline(0, color='black', linewidth=1)
     ax3.set_ylabel('R$')
-    ax3.set_title('Receitas e Despesas Mensais')
-    ax3.set_ylim(-1.3 * vmaxx_re, 1.3 * vmaxx_re)
+    ax3.set_title('Receitas e Despesas')
+    ax3.set_ylim(-v_margin * vmaxx_re, v_margin * vmaxx_re)
     ax3.set_xlim(df[dt_field].values[0] - (2*bar_width), df[dt_field].values[-1] + bar_width)
     for x, rev, exp in zip(df[dt_field], df[rev_field], df[exp_field]):
         ax3.text(x - bar_width / 2, rev + (vmaxx_re/20),
@@ -106,6 +274,39 @@ def plot_cashflow(df, folder, filename, dt_field="Date", val_field="Saldo", rev_
         ax3.text(x - bar_width / 2, exp - (vmaxx_re/20),
                  f"{'+ ' if exp >= 0 else '- '}{round(abs(exp), 2)}",
                  ha='center', va='top', fontsize=9, color='darkred')
+    # Substituindo os rótulos do eixo X com as siglas dos meses
+    plt.xticks(df[dt_field], df[dt_field].dt.strftime('%b'))
+
+    # Subplot 4: Lucros
+    ax4 = fig.add_subplot(gs[3, 0])
+    ax4.bar(df[dt_field] - bar_width / 2, df["Lucros"], width=bar_width, color='magenta', )
+    ax4.axhline(0, color='black', linewidth=1)
+    ax4.set_ylabel('R$')
+    ax4.set_title('Lucros')
+    ax4.set_ylim(-v_margin * vmaxx_re, v_margin * vmaxx_re)
+    ax4.set_xlim(df[dt_field].values[0] - (2 * bar_width), df[dt_field].values[-1] + bar_width)
+    for x, rev in zip(df[dt_field], df["Lucros"]):
+        ax4.text(x - bar_width / 2, rev - (vmaxx_re/3),
+                 f"{'+ ' if rev >= 0 else '- '}{round(abs(rev), 2)}",
+                 ha='center', va='bottom', fontsize=9, color='purple')
+    # Substituindo os rótulos do eixo X com as siglas dos meses
+    plt.xticks(df[dt_field], df[dt_field].dt.strftime('%b'))
+
+    # Subplot 4: Lucros
+    ax4 = fig.add_subplot(gs[4, 0])
+    ax4.bar(df[dt_field] - bar_width / 2, df["Prolabore"], width=bar_width, color='magenta', )
+    ax4.axhline(0, color='black', linewidth=1)
+    ax4.set_ylabel('R$')
+    ax4.set_title('Prolabore')
+    ax4.set_ylim(-v_margin * vmaxx_re, v_margin * vmaxx_re)
+    ax4.set_xlim(df[dt_field].values[0] - (2 * bar_width), df[dt_field].values[-1] + bar_width)
+    for x, rev in zip(df[dt_field], df["Prolabore"]):
+        ax4.text(x - bar_width / 2, rev - (vmaxx_re / 3),
+                 f"{'+ ' if rev >= 0 else '- '}{round(abs(rev), 2)}",
+                 ha='center', va='bottom', fontsize=9, color='purple')
+    # Substituindo os rótulos do eixo X com as siglas dos meses
+    plt.xticks(df[dt_field], df[dt_field].dt.strftime('%b'))
+
 
     # Shared X-axis formatting and layout adjustment
     #plt.xlabel('Mês')
@@ -303,14 +504,14 @@ class Budget(RecordTable):
 
         return annual_budget
 
-class NFe(DataSet):
+class NFSe(DataSet):
     """
     Child class for handling NFSe XML data.
     """
 
-    def __init__(self, name="NFSeDataSet", alias="NFeDS"):
+    def __init__(self, name="NFSeDataSet", alias="NFSe"):
         """
-        Initialize the NFe object.
+        Initialize the NFSe object.
         """
         super().__init__(name=name, alias=alias)
 
@@ -443,6 +644,7 @@ class NFe(DataSet):
         """
         # Ensure the file path is absolute
         file_data = os.path.abspath(file_data)
+        #print(file_data)
         tree = ET.parse(file_data)
         root = tree.getroot()
 
@@ -526,9 +728,9 @@ class NFe(DataSet):
         self.service_id = self.data["servico"]["codigo_servico"]
 
 
-class NFeColl(Collection):
-    def __init__(self, base_object=NFe, name="MyNFeCollection", alias="NFeCol0"):
-        """Initialize the ``NFeColl`` object.
+class NFSeColl(Collection):
+    def __init__(self, base_object=NFSe, name="MyNFeCollection", alias="NFeCol0"):
+        """Initialize the ``NFSeColl`` object.
 
         :param base_object: ``MbaE``-based object for collection
         :type base_object: :class:`MbaE`
@@ -562,7 +764,7 @@ class NFeColl(Collection):
         # ... continues in downstream objects ... #
 
     def load_folder(self, folder):
-        """Load NFe files from a folder
+        """Load NFSe files from a folder
 
         :param folder: path to folder
         :type folder: str
@@ -575,7 +777,7 @@ class NFeColl(Collection):
 
 
     def load_files(self, lst_files):
-        """Load NFe files from a list of files
+        """Load NFSe files from a list of files
 
         :param lst_files: list of paths to files
         :type lst_files: list
@@ -583,8 +785,8 @@ class NFeColl(Collection):
         :rtype: None
         """
         for f in lst_files:
-            nfe_id = 'NFe_' + os.path.basename(f).split(".")[0]
-            nfe = NFe(name=nfe_id, alias=nfe_id)
+            nfe_id = 'NFSe_' + os.path.basename(f).split(".")[0]
+            nfe = NFSe(name=nfe_id, alias=nfe_id)
             nfe.load_data(file_data=f)
             self.append(new_object=nfe)
 
@@ -598,7 +800,7 @@ if __name__ == "__main__":
     df = pd.read_csv(f, sep=";", parse_dates=["Data"])
     print(df.head())
 
-    plot_cashflow(df=df, folder=r"C:\Users\Ipo\My Drive\athens\babylon\slu\series", filename="caixa-mensal_cc-rf", dt_field="Data")
+    plot_yearly_cashflow(df=df, folder=r"C:\Users\Ipo\My Drive\athens\babylon\slu\series", filename="caixa-mensal_cc-rf", dt_field="Data")
 
 
 
