@@ -19,8 +19,8 @@ def plot_yearly_cashflow(df, folder, filename):
         "valac": "Saldo Acum",
         "rev": "Receitas",
         "revac": "Receitas Acum",
-        "exp": "Despesas",
-        "expac": "Despesas Acum",
+        "exp": "Desembolsos",
+        "expac": "Desembolsos Acum",
         "dt": "Data"
     }
 
@@ -99,7 +99,7 @@ def plot_yearly_cashflow(df, folder, filename):
     ax3.bar(df[fields["dt"]] - bar_width / 2, df[fields["rev"]], width=bar_width, color='tab:green')
     ax3.bar(df[fields["dt"]] - bar_width / 2, df[fields["exp"]], width=bar_width, color='tab:red')
     ax3.set_ylabel('R$')
-    ax3.set_title('Receitas e Despesas')
+    ax3.set_title('Receitas e Desembolsos')
     add_baseline(ax3, vmaxx_re)
     add_xticks(ax3, df[fields["dt"]])
 
@@ -160,8 +160,8 @@ def _plot_yearly_cashflow(df, folder, filename):
     valac_field = "Saldo Acum"
     rev_field = "Receitas"
     revac_field = "Receitas Acum"
-    exp_field = "Despesas"
-    expac_field = "Despesas Acum"
+    exp_field = "Desembolsos"
+    expac_field = "Desembolsos Acum"
     dt_field = "Data"
 
     v_margin = 1.5
@@ -192,7 +192,7 @@ def _plot_yearly_cashflow(df, folder, filename):
     ax1.plot(df[dt_field], df[revac_field], marker='o', color='darkgreen', linestyle='-',
              label='Receitas')
     ax1.plot(df[dt_field], df[expac_field], marker='o', color='tab:red', linestyle='-',
-             label='Despesas')
+             label='Desembolsos')
     ax1.set_ylabel('R$')
     ax1.set_title('Saldo Acumulado')
     ax1.axhline(0, color='black', linewidth=1)
@@ -264,7 +264,7 @@ def _plot_yearly_cashflow(df, folder, filename):
     ax3.bar(df[dt_field] - bar_width / 2, df[exp_field], width=bar_width, color='tab:red',)
     ax3.axhline(0, color='black', linewidth=1)
     ax3.set_ylabel('R$')
-    ax3.set_title('Receitas e Despesas')
+    ax3.set_title('Receitas e Desembolsos')
     ax3.set_ylim(-v_margin * vmaxx_re, v_margin * vmaxx_re)
     ax3.set_xlim(df[dt_field].values[0] - (2*bar_width), df[dt_field].values[-1] + bar_width)
     for x, rev, exp in zip(df[dt_field], df[rev_field], df[exp_field]):
@@ -687,18 +687,25 @@ class NFSe(DataSet):
 
         # Extract tomador (receiver) data
         tomador = root.find('.//default:toma', ns)
+
         nfse_data[self.taker_field] = {
-            'cnpj': tomador.find('.//default:CNPJ', ns).text,
+            'cnpj': tomador.find('.//default:CNPJ', ns).text if tomador.find('.//default:CNPJ', ns) is not None else None,
+            'nif': tomador.find('.//default:NIF', ns).text if tomador.find('.//default:NIF',
+                                                                           ns) is not None else None,
             'nome': tomador.find('.//default:xNome', ns).text,
-            'endereco': {
+        }
+        #print()
+        #print(nfse_data[self.taker_field]["nome"])
+        _address =    {
                 'logradouro': tomador.find('.//default:end/default:xLgr', ns).text,
                 'numero': tomador.find('.//default:end/default:nro', ns).text,
                 'complemento': tomador.find('.//default:end/default:xCpl', ns).text if tomador.find('.//default:end/default:xCpl', ns) is not None else None,
-                'bairro': tomador.find('.//default:end/default:xBairro', ns).text,
-                'cidade': tomador.find('.//default:end/default:endNac/default:cMun', ns).text,
-                'cep': tomador.find('.//default:end/default:endNac/default:CEP', ns).text
-            }
+                'bairro': tomador.find('.//default:end/default:xBairro', ns).text if tomador.find('.//default:end/default:xBairro', ns) is not None else None,
+                'cidade': tomador.find('.//default:end/default:endNac/default:cMun', ns).text if tomador.find('.//default:end/default:endNac/default:cMun', ns) is not None else None,
+                'cep': tomador.find('.//default:end/default:endNac/default:CEP', ns).text if tomador.find('.//default:end/default:endNac/default:CEP', ns) is not None else None,
         }
+
+        nfse_data[self.taker_field]['endereco'] = _address.copy()
 
         # Extract service data
         servico = root.find('.//default:serv', ns)
@@ -722,7 +729,11 @@ class NFSe(DataSet):
         self.date = nfse_data[self.date_field]
         self.file_data = file_data
         self.emitter = self.data[self.emitter_field]["cnpj"] + " -- " + self.data[self.emitter_field]["nome"]
-        self.taker = self.data[self.taker_field]["cnpj"] + " -- " + self.data[self.taker_field]["nome"]
+        # hande NIF or CNPJ
+        if self.data[self.taker_field]["cnpj"] is not None:
+            self.taker = self.data[self.taker_field]["cnpj"] + " (CNPJ) -- " + self.data[self.taker_field]["nome"]
+        else:
+            self.taker = self.data[self.taker_field]["nif"] + " (NIF) -- " + self.data[self.taker_field]["nome"]
         self.service_value = self.data[self.service_value_field]
         self.service_value_trib = nfse_data['servico']["p_tributo_SN"]
         self.service_id = self.data["servico"]["codigo_servico"]

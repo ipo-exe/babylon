@@ -1160,6 +1160,9 @@ class Note(MbaE):
         ls_out = []
         for level in data_dict:
             ls_out = ls_out + data_dict[level][:]
+            ls_out.append("")
+            ls_out.append("---")
+            ls_out.append("")
         return ls_out
 
     @staticmethod
@@ -1174,7 +1177,6 @@ class Note(MbaE):
 
         # Find all separator positions (lines with "---")
         separator_indices = [i for i, line in enumerate(lines) if line.strip() == "---"]
-        print(separator_indices)
 
         # Default values for Head, Body, and Tail
         head, body, tail = [], [], []

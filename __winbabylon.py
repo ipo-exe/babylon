@@ -81,25 +81,25 @@ def run_monthly_balance(df, ano_especifico, series_folder, year):
             "Custeio": fpivot["Custeio"],
             "Prolabore": fpivot["Prolabore"],
             "Lucros": fpivot["Lucros"],
-            "Despesas": fpivot["Impostos"] + fpivot["Custeio"] + fpivot["Prolabore"] + fpivot["Lucros"],
+            "Desembolsos": fpivot["Impostos"] + fpivot["Custeio"] + fpivot["Prolabore"] + fpivot["Lucros"],
         }
     )
 
-    df_o["Saldo"] = df_o["Receitas"] + df_o["Despesas"]
+    df_o["Saldo"] = df_o["Receitas"] + df_o["Desembolsos"]
     df_o["Saldo Acum"] = df_o["Saldo"].cumsum()
 
     df_o["Receitas Acum"] = df_o["Receitas"].cumsum()
 
-    df_o["Despesas Acum"] = df_o["Despesas"].cumsum()
+    df_o["Desembolsos Acum"] = df_o["Desembolsos"].cumsum()
 
     df_o["Data"] = [str(s) + "-01" for s in df_o["Mes"]]
     df_o["Data"] = pd.to_datetime(df_o["Data"])
 
     lst_cols = [
         "Data",
-        "Receitas", "Despesas", "Saldo",
+        "Receitas", "Desembolsos", "Saldo",
         "Impostos", "Custeio", "Prolabore", "Lucros",
-        "Receitas Acum", "Despesas Acum", "Saldo Acum",
+        "Receitas Acum", "Desembolsos Acum", "Saldo Acum",
     ]
     df_o = df_o[lst_cols].copy()
     # Convertendo para o último dia do mês
@@ -111,7 +111,7 @@ def run_monthly_balance(df, ano_especifico, series_folder, year):
     lst_cols = [
                 "Saldo",
                 "Receitas",
-                "Despesas",
+                "Desembolsos",
                 "Impostos",
                 "Custeio",
                 "Prolabore",
@@ -150,7 +150,7 @@ def run_declared_revenue(src_root, series_folder, year):
         nfe_col.catalog["Date"] = pd.to_datetime(nfe_col.catalog["Date"])
         df_nfe_full = nfe_col.catalog.copy()
         # filter to current year
-        df_nfe_cur = df_nfe_full.query(f"Date >= '{year}-01-01' and Date < '{int(year)+1}-01-01'")
+        df_nfe_cur = df_nfe_full.query(f"Date >= '{year}-01-01' and Date < '{int(year)+1}-01-01'").copy()
         # Obter a segunda pasta acima para cada caminho
         df_nfe_cur["Projeto"] = [
             os.path.basename(os.path.dirname(os.path.dirname(file_path)))

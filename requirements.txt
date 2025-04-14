@@ -10,3 +10,4 @@ shapely
 imageio
 Sphinx
 scikit-learn
+pillow
