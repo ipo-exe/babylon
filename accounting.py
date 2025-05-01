@@ -4,11 +4,106 @@ import xml.etree.ElementTree as ET
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 from matplotlib.gridspec import GridSpec
+
+# Portaria Interministerial MPS/MF nº 6
+TABELA_INSS_2025 = [
+    (1518.00, 0.075),
+    (2793.88, 0.09),
+    (4190.83, 0.12),
+    (8157.41, 0.14)
+]
+
+# MEDIDA PROVISÓRIA Nº 1.294, DE 11 DE ABRIL DE 2025
+TABELA_IRRF_2025 = [
+    (2428.81, 2826.65, 0.075, 182.16),
+    (2826.66, 3751.05, 0.15, 394.16),
+    (3751.06, 4664.68, 0.225, 675.49),
+    (4664.68, float('inf'), 0.275, 908.73)
+]
+
+def calcular_irrf(salario_bruto, tabela, deducao=0.0):
+    """
+    Calcula o IRRF (Imposto de Renda Retido na Fonte) com base nas faixas de tributação.
+
+    Parâmetros:
+    - salario_bruto (float): salário bruto mensal.
+    - deducao (float): total de deduções mensais (ex: INSS, dependentes). Default é 0.0.
+
+    Retorna:
+    - imposto (float): valor do IRRF a ser pago no mês.
+
+    """
+
+    # Base de cálculo do IR
+    base = salario_bruto - deducao
+
+    # Se estiver abaixo da menor faixa, não há imposto
+    if base <= 2428.80:
+        return 0.0
+
+    # Identifica a faixa aplicável
+    for faixa in tabela:
+        if faixa[0] <= base <= faixa[1]:
+            aliquota = faixa[2]
+            deduzir = faixa[3]
+            imposto = base * aliquota - deduzir
+            return round(imposto, 2)
+
+    # Segurança — não deveria chegar aqui
+    return 0.0
+
+def calcular_inss(salario, tabela, empregado=True, f_autonomo=0.11):
+    """
+    Calcula o desconto de INSS de forma progressiva conforme as faixas e alíquotas definidas.
+
+    Parâmetros:
+    - salario (float): valor bruto do salário ou rendimento mensal.
+    - tabela (list of tuples): lista de faixas progressivas no formato (limite_superior, alíquota),
+      ordenadas de forma crescente.
+    - empregado (bool): se True, aplica o cálculo progressivo por faixas (regime de contribuinte empregado);
+      se False, aplica a alíquota fixa definida para autônomos.
+    - f_autonomo (float): alíquota única aplicada a autônomos (padrão: 11%). O valor máximo de salário
+      considerado é o teto da última faixa da tabela.
+
+    Retorna:
+    - desconto (float): valor total a ser descontado a título de INSS.
+
+    Exemplo:
+    >>> faixas_2024 = [
+    ...     (1518.00, 0.075),      # até R$ 1.518,00 → 7,5%
+    ...     (2793.88, 0.09),       # de R$ 1.518,01 até R$ 2.793,88 → 9%
+    ...     (4190.83, 0.12),       # de R$ 2.793,89 até R$ 4.190,83 → 12%
+    ...     (8157.41, 0.14)        # de R$ 4.190,84 até R$ 8.157,41 → 14%
+    ... ]
+    >>> calcular_inss(3000.00, faixas_2024)
+    285.12
+    >>> calcular_inss(9000.00, faixas_2024, empregado=False)
+    897.32
+    """
+    # Valor acumulado do desconto progressivo
+    if empregado:
+        desconto = 0.0
+        limite_inferior = 0.0  # Limite inferior da faixa (inicialmente zero)
+        for limite_superior, aliquota in tabela:
+            # Se o salário ultrapassa o limite superior da faixa atual
+            if salario > limite_superior:
+                base = limite_superior - limite_inferior
+            else:
+                base = max(0, salario - limite_inferior)
+            desconto += base * aliquota
+            if salario <= limite_superior:
+                break
+            limite_inferior = limite_superior
+
+    else:
+        salario_inss = salario
+        if salario >= tabela[-1][0]:
+            salario_inss = tabela[-1][0]
+        desconto = salario_inss * f_autonomo
+
+    return round(desconto, 2)
+
 
 def plot_yearly_cashflow(df, folder, filename):
     plt.style.use("seaborn-v0_8")
@@ -807,11 +902,13 @@ class NFSeColl(Collection):
 
 
 if __name__ == "__main__":
-    f =r"C:\Users\Ipo\My Drive\athens\babylon\slu\series\caixa-mensal_cc-rf.csv"
-    df = pd.read_csv(f, sep=";", parse_dates=["Data"])
-    print(df.head())
 
-    plot_yearly_cashflow(df=df, folder=r"C:\Users\Ipo\My Drive\athens\babylon\slu\series", filename="caixa-mensal_cc-rf", dt_field="Data")
+    s = 5500
+    d = calcular_inss(s, tabela=TABELA_INSS_2025, empregado=True)
+    print(d)
+    irrf = calcular_irrf(salario_bruto=s, tabela=TABELA_IRRF_2025, deducao=d)
+    print(irrf)
+
 
 
 
