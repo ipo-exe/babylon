@@ -902,12 +902,31 @@ class NFSeColl(Collection):
 
 
 if __name__ == "__main__":
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
 
-    s = 5500
+    s = 5000
     d = calcular_inss(s, tabela=TABELA_INSS_2025, empregado=True)
-    print(d)
     irrf = calcular_irrf(salario_bruto=s, tabela=TABELA_IRRF_2025, deducao=d)
     print(irrf)
+    v = np.linspace(1500, 50000, num=200)
+    #print(v)
+    ls_ir = list()
+    ls_ir_p = list()
+    for i in range(len(v)):
+        s = v[i]
+        d = calcular_inss(s, tabela=TABELA_INSS_2025, empregado=True)
+        irrf = calcular_irrf(salario_bruto=s, tabela=TABELA_IRRF_2025, deducao=d)
+        #print(irrf)
+        ls_ir.append(irrf)
+        ls_ir_p.append(irrf / s)
+    y = np.array(ls_ir)
+    p = np.array(ls_ir_p) * 100
+    plt.plot(v, p)
+    plt.xlabel("R$ Renda Mensal")
+    plt.ylabel("% de Imposto de Renda")
+    plt.show()
 
 
 
