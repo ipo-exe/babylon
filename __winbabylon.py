@@ -27,7 +27,6 @@ def run_daily_balance(series_folder, year):
     df_full.to_csv(f"{series_folder}/{year}/caixa-diario_cc_{year}.csv", sep=";", index=False)
     return df_full
 
-
 def run_monthly_balance(df, ano_especifico, series_folder, year):
     """
     Agrega o DataFrame por totais mensais e tipos de lançamento,
@@ -136,11 +135,10 @@ def run_monthly_balance(df, ano_especifico, series_folder, year):
 
     return df_o, df_m
 
-
-def run_declared_revenue(src_root, series_folder, year):
+def run_declared_revenue(src_root, series_folder, year, acc_folder="budget"):
     # 1) Get all NFSe from projects
     # get all NFSe's from LOS ALAMOS
-    lst_files = glob.glob(f"{src_root}/losalamos/*/*/budget/*.xml")
+    lst_files = glob.glob(f"{src_root}/losalamos/*/*/{acc_folder}/*.xml")
     if len(lst_files) == 0:
         pass
     else:

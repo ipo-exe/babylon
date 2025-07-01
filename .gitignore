@@ -1,0 +1,6 @@
+# Ignore all files and folders starting with "_"
+_*
+bench*.py
+
+# EXCEPT __init__.py files
+!__init__.py

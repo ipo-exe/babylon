@@ -105,6 +105,47 @@ def calcular_inss(salario, tabela, empregado=True, f_autonomo=0.11):
     return round(desconto, 2)
 
 
+def plot_yearly_cashflow2(): #(df, folder, filename):
+    #plt.style.use("seaborn-v0_8")
+    # Set the default font family to Arial
+    plt.rcParams['font.family'] = 'Arial'
+    # A4 paper dimensions in inches (from previous answer)
+    a4_width_inches = 8.27
+    a4_height_inches = 11.69
+
+    # Create a figure with A4 proportions and 5 subplots in one column
+    fig, axs = plt.subplots(nrows=5, ncols=1, figsize=(a4_width_inches, a4_height_inches))
+
+    # Generate some sample data for the plots
+    x = np.linspace(0, 10, 100)
+    y_data = [np.sin(x + i * np.pi / 2) for i in range(5)]  # 5 different sine waves
+
+    # Plot on each subplot
+    for i, ax in enumerate(axs):
+        ax.plot(x, y_data[i])
+        ax.set_title(f'Plot {i + 1}')  # Set a title for each subplot
+        if i < 4:  # Remove x-axis labels for all but the bottom plot
+            ax.tick_params(labelbottom=False)
+        else:
+            ax.set_xlabel("X-axis")
+        ax.set_ylabel("Y-axis")
+        ax.set_facecolor('#eaeaf4')
+
+        # Adjust subplot parameters to make space for titles, labels, and overall margins
+    # These values are fractions of the figure width/height
+    plt.subplots_adjust(
+        left=0.3,  # Left margin
+        right=0.9,  # Right margin
+        top=0.95,  # Top margin
+        bottom=0.08,  # Bottom margin for the last plot's x-label
+        hspace=0.6  # Height space between subplots
+    )
+
+    # You can also use fig.tight_layout() as a simpler alternative
+    # fig.tight_layout(pad=3.0) # pad controls spacing around subplots
+
+    plt.show()
+
 def plot_yearly_cashflow(df, folder, filename):
     plt.style.use("seaborn-v0_8")
 
@@ -792,8 +833,8 @@ class NFSe(DataSet):
         #print()
         #print(nfse_data[self.taker_field]["nome"])
         _address =    {
-                'logradouro': tomador.find('.//default:end/default:xLgr', ns).text,
-                'numero': tomador.find('.//default:end/default:nro', ns).text,
+                'logradouro': tomador.find('.//default:end/default:xLgr', ns).text if tomador.find('.//default:end/default:xLgr', ns) is not None else None,
+                'numero': tomador.find('.//default:end/default:nro', ns).text if tomador.find('.//default:end/default:nro', ns) is not None else None,
                 'complemento': tomador.find('.//default:end/default:xCpl', ns).text if tomador.find('.//default:end/default:xCpl', ns) is not None else None,
                 'bairro': tomador.find('.//default:end/default:xBairro', ns).text if tomador.find('.//default:end/default:xBairro', ns) is not None else None,
                 'cidade': tomador.find('.//default:end/default:endNac/default:cMun', ns).text if tomador.find('.//default:end/default:endNac/default:cMun', ns) is not None else None,
@@ -827,8 +868,10 @@ class NFSe(DataSet):
         # hande NIF or CNPJ
         if self.data[self.taker_field]["cnpj"] is not None:
             self.taker = self.data[self.taker_field]["cnpj"] + " (CNPJ) -- " + self.data[self.taker_field]["nome"]
-        else:
+        elif self.data[self.taker_field]["nif"] is not None:
             self.taker = self.data[self.taker_field]["nif"] + " (NIF) -- " + self.data[self.taker_field]["nome"]
+        else:
+            self.taker = self.data[self.taker_field]["nome"]
         self.service_value = self.data[self.service_value_field]
         self.service_value_trib = nfse_data['servico']["p_tributo_SN"]
         self.service_id = self.data["servico"]["codigo_servico"]
@@ -902,31 +945,9 @@ class NFSeColl(Collection):
 
 
 if __name__ == "__main__":
-    import numpy as np
-    import pandas as pd
-    import matplotlib.pyplot as plt
 
-    s = 5000
-    d = calcular_inss(s, tabela=TABELA_INSS_2025, empregado=True)
-    irrf = calcular_irrf(salario_bruto=s, tabela=TABELA_IRRF_2025, deducao=d)
-    print(irrf)
-    v = np.linspace(1500, 50000, num=200)
-    #print(v)
-    ls_ir = list()
-    ls_ir_p = list()
-    for i in range(len(v)):
-        s = v[i]
-        d = calcular_inss(s, tabela=TABELA_INSS_2025, empregado=True)
-        irrf = calcular_irrf(salario_bruto=s, tabela=TABELA_IRRF_2025, deducao=d)
-        #print(irrf)
-        ls_ir.append(irrf)
-        ls_ir_p.append(irrf / s)
-    y = np.array(ls_ir)
-    p = np.array(ls_ir_p) * 100
-    plt.plot(v, p)
-    plt.xlabel("R$ Renda Mensal")
-    plt.ylabel("% de Imposto de Renda")
-    plt.show()
+    df = pd.read_csv("{}")
+    plot_yearly_cashflow2()
 
 
 
